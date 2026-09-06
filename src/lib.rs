@@ -7,7 +7,7 @@
 //! # Example
 //!
 //! ```
-//! use match_variants::{import_match_variants, match_variants, MatchVariants};
+//! use match_variants::{match_variants, MatchVariants};
 //!
 //! struct Foo(f64);
 //! struct Bar(f64);
@@ -170,10 +170,8 @@ pub fn match_variants(input: TokenStream) -> TokenStream {
 /// # Example
 ///
 /// ```
-/// use match_variants::{import_match_variants, match_variants, MatchVariants};
-///
 /// mod domain {
-///     use super::MatchVariants;
+///     use match_variants::MatchVariants;
 ///
 ///     pub struct Foo(pub i32);
 ///     pub struct Bar(pub i32);
@@ -197,19 +195,27 @@ pub fn match_variants(input: TokenStream) -> TokenStream {
 ///     }
 /// }
 ///
-/// import_match_variants!(
-///     crate::domain::{
-///         Value,
+/// mod application {
+///     use match_variants::{import_match_variants, match_variants};
+///
+///     import_match_variants!(
+///         crate::domain::{
+///             Value,
+///         }
+///     );
+///
+///     pub fn value(value: crate::domain::Value) -> i32 {
+///         match_variants!(crate::domain::Value, value, (x), {
+///             x.value()
+///         })
 ///     }
-/// );
+/// }
 ///
-/// let value = domain::Value::Foo(domain::Foo(42));
+/// fn main() {
+///     let value = domain::Value::Foo(domain::Foo(42));
 ///
-/// let result = match_variants!(crate::domain::Value, value, (x), {
-///     x.value()
-/// });
-///
-/// assert_eq!(result, 42);
+///     assert_eq!(application::value(value), 42);
+/// }
 /// ```
 ///
 /// Multiple enums from the same module can be imported at once:
