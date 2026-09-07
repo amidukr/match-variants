@@ -52,7 +52,9 @@ pub(crate) fn expand(input: TokenStream) -> TokenStream {
 
         let variant_type = match parse_variant_type(&variant.attrs) {
             Ok(variant_type) => variant_type,
-            Err(error) => return error.to_compile_error().into(),
+            Err(error) => {
+                return error.to_compile_error().into();
+            }
         };
 
         variants.push(VariantInfo {
@@ -61,14 +63,48 @@ pub(crate) fn expand(input: TokenStream) -> TokenStream {
         });
     }
 
+    let variant_type_count = variants
+        .iter()
+        .filter(|variant| variant.variant_type.is_some())
+        .count();
+
+    if variant_type_count != 0 && variant_type_count != variants.len() {
+        let missing_variants: Vec<_> = variants
+            .iter()
+            .filter(|variant| variant.variant_type.is_none())
+            .map(|variant| variant.ident.to_string())
+            .collect();
+
+        let first_missing = variants
+            .iter()
+            .find(|variant| variant.variant_type.is_none())
+            .expect("partial variant type metadata must have a missing variant");
+
+        let message = format!(
+            "MatchVariants requires #[variant_type(...)] on either all variants or none; \
+             missing on: {}",
+            missing_variants.join(", "),
+        );
+
+        return syn::Error::new_spanned(&first_missing.ident, message)
+            .to_compile_error()
+            .into();
+    }
+
+    let has_variant_types = !variants.is_empty() && variant_type_count == variants.len();
+
     let helper_macro = format_ident!("match_variants_for_{}", enum_name);
 
     let generated = match variant_kind {
-        Some(VariantKind::Unit) => generate_unit_macro(&helper_macro, &variants),
+        Some(VariantKind::Unit) => generate_unit_macro(&helper_macro, &variants, has_variant_types),
 
-        Some(VariantKind::Unnamed) => generate_unnamed_macro(&helper_macro, &variants),
+        Some(VariantKind::Unnamed) => {
+            generate_unnamed_macro(&helper_macro, &variants, has_variant_types)
+        }
 
-        Some(VariantKind::Named) => generate_named_macro(&helper_macro, &variants),
+        Some(VariantKind::Named) => {
+            generate_named_macro(&helper_macro, &variants, has_variant_types)
+        }
 
         None => generate_empty_macro(&helper_macro),
     };
@@ -97,41 +133,30 @@ fn parse_variant_type(attrs: &[Attribute]) -> syn::Result<Option<Type>> {
     Ok(variant_type)
 }
 
-fn generate_unit_macro(helper_macro: &Ident, variants: &[VariantInfo]) -> TokenStream2 {
+fn generate_unit_macro(
+    helper_macro: &Ident,
+    variants: &[VariantInfo],
+    has_variant_types: bool,
+) -> TokenStream2 {
     let variant_names: Vec<_> = variants.iter().map(|variant| &variant.ident).collect();
 
-    let typed_arms: Vec<_> = variants
-        .iter()
-        .map(|variant| {
+    let typed_rule = if has_variant_types {
+        let typed_arms = variants.iter().map(|variant| {
             let variant_name = &variant.ident;
+            let variant_type = variant
+                .variant_type
+                .as_ref()
+                .expect("variant type metadata must be complete");
 
-            match &variant.variant_type {
-                Some(variant_type) => {
-                    quote! {
-                        $first $(:: $rest)* :: #variant_name => {
-                            type $type_binding = #variant_type;
-                            $body
-                        },
-                    }
-                }
-
-                None => {
-                    quote! {
-                        $first $(:: $rest)* :: #variant_name => {
-                            compile_error!(
-                                "variant is missing #[variant_type(...)]"
-                            );
-                        },
-                    }
-                }
+            quote! {
+                $first $(:: $rest)* :: #variant_name => {
+                    type $type_binding = #variant_type;
+                    $body
+                },
             }
-        })
-        .collect();
+        });
 
-    quote! {
-        #[doc(hidden)]
-        #[macro_export]
-        macro_rules! #helper_macro {
+        quote! {
             (
                 [$first:tt $(:: $rest:tt)*],
                 $value:expr,
@@ -142,6 +167,27 @@ fn generate_unit_macro(helper_macro: &Ident, variants: &[VariantInfo]) -> TokenS
                     #(#typed_arms)*
                 }
             };
+        }
+    } else {
+        quote! {
+            (
+                [$first:tt $(:: $rest:tt)*],
+                $value:expr,
+                type $type_binding:ident,
+                $body:expr
+            ) => {
+                compile_error!(
+                    "`type` binding requires #[variant_type(...)] on every enum variant"
+                )
+            };
+        }
+    };
+
+    quote! {
+        #[doc(hidden)]
+        #[macro_export]
+        macro_rules! #helper_macro {
+            #typed_rule
 
             (
                 [$first:tt $(:: $rest:tt)*],
@@ -164,45 +210,32 @@ fn generate_unit_macro(helper_macro: &Ident, variants: &[VariantInfo]) -> TokenS
     }
 }
 
-fn generate_unnamed_macro(helper_macro: &Ident, variants: &[VariantInfo]) -> TokenStream2 {
+fn generate_unnamed_macro(
+    helper_macro: &Ident,
+    variants: &[VariantInfo],
+    has_variant_types: bool,
+) -> TokenStream2 {
     let variant_names: Vec<_> = variants.iter().map(|variant| &variant.ident).collect();
 
-    let typed_arms: Vec<_> = variants
-        .iter()
-        .map(|variant| {
+    let typed_rule = if has_variant_types {
+        let typed_arms = variants.iter().map(|variant| {
             let variant_name = &variant.ident;
+            let variant_type = variant
+                .variant_type
+                .as_ref()
+                .expect("variant type metadata must be complete");
 
-            match &variant.variant_type {
-                Some(variant_type) => {
-                    quote! {
-                        $first $(:: $rest)* :: #variant_name(
-                            $($binding),*
-                        ) => {
-                            type $type_binding = #variant_type;
-                            $body
-                        },
-                    }
-                }
-
-                None => {
-                    quote! {
-                        $first $(:: $rest)* :: #variant_name(
-                            $($binding),*
-                        ) => {
-                            compile_error!(
-                                "variant is missing #[variant_type(...)]"
-                            );
-                        },
-                    }
-                }
+            quote! {
+                $first $(:: $rest)* :: #variant_name(
+                    $($binding),*
+                ) => {
+                    type $type_binding = #variant_type;
+                    $body
+                },
             }
-        })
-        .collect();
+        });
 
-    quote! {
-        #[doc(hidden)]
-        #[macro_export]
-        macro_rules! #helper_macro {
+        quote! {
             (
                 [$first:tt $(:: $rest:tt)*],
                 $value:expr,
@@ -214,6 +247,28 @@ fn generate_unnamed_macro(helper_macro: &Ident, variants: &[VariantInfo]) -> Tok
                     #(#typed_arms)*
                 }
             };
+        }
+    } else {
+        quote! {
+            (
+                [$first:tt $(:: $rest:tt)*],
+                $value:expr,
+                type $type_binding:ident,
+                ($($binding:pat),* $(,)?),
+                $body:expr
+            ) => {
+                compile_error!(
+                    "`type` binding requires #[variant_type(...)] on every enum variant"
+                )
+            };
+        }
+    };
+
+    quote! {
+        #[doc(hidden)]
+        #[macro_export]
+        macro_rules! #helper_macro {
+            #typed_rule
 
             (
                 [$first:tt $(:: $rest:tt)*],
@@ -239,51 +294,35 @@ fn generate_unnamed_macro(helper_macro: &Ident, variants: &[VariantInfo]) -> Tok
     }
 }
 
-fn generate_named_macro(helper_macro: &Ident, variants: &[VariantInfo]) -> TokenStream2 {
+fn generate_named_macro(
+    helper_macro: &Ident,
+    variants: &[VariantInfo],
+    has_variant_types: bool,
+) -> TokenStream2 {
     let variant_names: Vec<_> = variants.iter().map(|variant| &variant.ident).collect();
 
-    let typed_arms: Vec<_> = variants
-        .iter()
-        .map(|variant| {
+    let typed_rule = if has_variant_types {
+        let typed_arms = variants.iter().map(|variant| {
             let variant_name = &variant.ident;
+            let variant_type = variant
+                .variant_type
+                .as_ref()
+                .expect("variant type metadata must be complete");
 
-            match &variant.variant_type {
-                Some(variant_type) => {
-                    quote! {
-                        $first $(:: $rest)* :: #variant_name {
-                            $(
-                                $field: $binding
-                            ),*,
-                            ..
-                        } => {
-                            type $type_binding = #variant_type;
-                            $body
-                        },
-                    }
-                }
-
-                None => {
-                    quote! {
-                        $first $(:: $rest)* :: #variant_name {
-                            $(
-                                $field: $binding
-                            ),*,
-                            ..
-                        } => {
-                            compile_error!(
-                                "variant is missing #[variant_type(...)]"
-                            );
-                        },
-                    }
-                }
+            quote! {
+                $first $(:: $rest)* :: #variant_name {
+                    $(
+                        $field: $binding
+                    ),*,
+                    ..
+                } => {
+                    type $type_binding = #variant_type;
+                    $body
+                },
             }
-        })
-        .collect();
+        });
 
-    quote! {
-        #[doc(hidden)]
-        #[macro_export]
-        macro_rules! #helper_macro {
+        quote! {
             (
                 [$first:tt $(:: $rest:tt)*],
                 $value:expr,
@@ -300,6 +339,33 @@ fn generate_named_macro(helper_macro: &Ident, variants: &[VariantInfo]) -> Token
                     #(#typed_arms)*
                 }
             };
+        }
+    } else {
+        quote! {
+            (
+                [$first:tt $(:: $rest:tt)*],
+                $value:expr,
+                type $type_binding:ident,
+                {
+                    $(
+                        $field:ident : $binding:pat
+                    ),*
+                    $(,)?
+                },
+                $body:expr
+            ) => {
+                compile_error!(
+                    "`type` binding requires #[variant_type(...)] on every enum variant"
+                )
+            };
+        }
+    };
+
+    quote! {
+        #[doc(hidden)]
+        #[macro_export]
+        macro_rules! #helper_macro {
+            #typed_rule
 
             (
                 [$first:tt $(:: $rest:tt)*],
@@ -341,7 +407,38 @@ fn generate_empty_macro(helper_macro: &Ident) -> TokenStream2 {
             (
                 [$first:tt $(:: $rest:tt)*],
                 $value:expr,
+                type $type_binding:ident,
                 $pattern:tt,
+                $body:expr
+            ) => {
+                compile_error!(
+                    "`type` binding requires #[variant_type(...)] on every enum variant"
+                )
+            };
+
+            (
+                [$first:tt $(:: $rest:tt)*],
+                $value:expr,
+                type $type_binding:ident,
+                $body:expr
+            ) => {
+                compile_error!(
+                    "`type` binding requires #[variant_type(...)] on every enum variant"
+                )
+            };
+
+            (
+                [$first:tt $(:: $rest:tt)*],
+                $value:expr,
+                $pattern:tt,
+                $body:expr
+            ) => {
+                match $value {}
+            };
+
+            (
+                [$first:tt $(:: $rest:tt)*],
+                $value:expr,
                 $body:expr
             ) => {
                 match $value {}

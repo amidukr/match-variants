@@ -68,21 +68,14 @@ impl Parse for MatchVariantsInput {
             input.parse::<Token![,]>()?;
 
             Some(pattern)
-        } else if input.peek(syn::token::Brace)
-            && (type_binding.is_none() || brace_is_followed_by_comma(input)?)
-        {
+        } else if input.peek(syn::token::Brace) && brace_is_followed_by_comma(input)? {
             let pattern = parse_named_pattern(input)?;
 
             input.parse::<Token![,]>()?;
 
             Some(pattern)
-        } else if type_binding.is_some() {
-            None
         } else {
-            return Err(input.error(
-                "expected unnamed pattern `(x, ...)` \
-                 or named pattern `{ field: x, ... }`",
-            ));
+            None
         };
 
         let body: Expr = input.parse()?;
@@ -145,6 +138,16 @@ pub(crate) fn expand(input: TokenStream) -> TokenStream {
     let match_enum_path = generate_match_enum_path(&enum_path);
 
     let generated = match (type_binding, pattern) {
+        (None, None) => {
+            quote! {{
+                #helper_macro!(
+                    [#match_enum_path],
+                    #value,
+                    #body
+                )
+            }}
+        }
+
         (None, Some(VariantPattern::Unnamed(bindings))) => {
             quote! {{
                 #helper_macro!(
@@ -216,10 +219,6 @@ pub(crate) fn expand(input: TokenStream) -> TokenStream {
                     #body
                 )
             }}
-        }
-
-        (None, None) => {
-            unreachable!("a match without a type binding must have a variant pattern")
         }
     };
 
