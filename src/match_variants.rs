@@ -7,15 +7,20 @@ use syn::{
     parse::{Parse, ParseStream},
     parse_macro_input,
     punctuated::Punctuated,
-    Expr, Ident, Pat, Path, Result, Token,
+    Expr, Generics, Ident, Pat, Path, Result, Token,
 };
 
 struct MatchVariantsInput {
     enum_path: Path,
     value: Expr,
-    type_binding: Option<Ident>,
+    type_binding: Option<TypeBinding>,
     pattern: Option<VariantPattern>,
     body: Expr,
+}
+
+struct TypeBinding {
+    ident: Ident,
+    generics: Generics,
 }
 
 enum VariantPattern {
@@ -51,11 +56,12 @@ impl Parse for MatchVariantsInput {
         let type_binding = if input.peek(Token![type]) {
             input.parse::<Token![type]>()?;
 
-            let binding: Ident = input.parse()?;
+            let ident: Ident = input.parse()?;
+            let generics: Generics = input.parse()?;
 
             input.parse::<Token![,]>()?;
 
-            Some(binding)
+            Some(TypeBinding { ident, generics })
         } else {
             None
         };
@@ -142,15 +148,16 @@ pub(crate) fn expand(input: TokenStream) -> TokenStream {
      * Examples:
      *
      *     [no_type], [none]
-     *     [type T], [none]
+     *     [type T []], [none]
+     *     [type T [<U: Marker>]], [none]
      *     [no_type], [unnamed (x)]
-     *     [type T], [named { value: x }]
+     *     [type T []], [named { value: x }]
      */
 
     let type_binding = match type_binding {
-        Some(type_binding) => {
+        Some(TypeBinding { ident, generics }) => {
             quote! {
-                [type #type_binding]
+                [type #ident [#generics]]
             }
         }
 
