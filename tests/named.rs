@@ -109,3 +109,14 @@ fn named_multiple_fields_are_bound() {
     assert_eq!(foo_result, 15.0);
     assert_eq!(bar_result, 50.0);
 }
+#[test]
+fn named_variants_can_be_matched_without_binding_payload() {
+    let foo = SingleFieldNamed::Foo { value: Foo(10.0) };
+    let bar = SingleFieldNamed::Bar { value: Bar(10.0) };
+
+    let foo_result = match_variants!(SingleFieldNamed, foo, "named");
+    let bar_result = match_variants!(SingleFieldNamed, bar, "named");
+
+    assert_eq!(foo_result, "named");
+    assert_eq!(bar_result, "named");
+}
