@@ -1,5 +1,11 @@
 # match-variants
 
+[![Crates.io](https://img.shields.io/crates/v/match-variants.svg)](https://crates.io/crates/match-variants)
+[![Documentation](https://docs.rs/match-variants/badge.svg)](https://docs.rs/match-variants)
+[![Release](https://github.com/amidukr/match-variants/actions/workflows/release.yml/badge.svg)](https://github.com/amidukr/match-variants/actions/workflows/release.yml)
+[![Downloads](https://img.shields.io/crates/d/match-variants.svg)](https://crates.io/crates/match-variants)
+[![License](https://img.shields.io/crates/l/match-variants.svg)](https://github.com/amidukr/match-variants/blob/main/LICENSE)
+
 ![match-variants](assets/match-variants-overview.png)
 
 `match-variants` provides procedural macros for applying the same expression to every variant of a Rust enum without requiring the variants or their payload types to implement a common trait.
