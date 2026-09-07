@@ -1,8 +1,13 @@
 [package]
-license = "Apache-2.0"
 name = "match-variants"
 version = "0.1.0"
 edition = "2021"
+license = "Apache-2.0"
+description = "Rust procedural macros for applying the same expression to heterogeneous enum variants without a common trait."
+repository = "https://github.com/amidukr/match-variants"
+readme = "README.md"
+keywords = ["enum", "macro", "proc-macro", "dispatch"]
+categories = ["rust-patterns"]
 
 [lib]
 proc-macro = true
