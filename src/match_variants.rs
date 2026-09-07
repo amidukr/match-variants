@@ -31,9 +31,7 @@ struct NamedBinding {
 impl Parse for NamedBinding {
     fn parse(input: ParseStream) -> Result<Self> {
         let field: Ident = input.parse()?;
-
         input.parse::<Token![:]>()?;
-
         let binding = Pat::parse_single(input)?;
 
         Ok(Self { field, binding })
@@ -92,7 +90,6 @@ impl Parse for MatchVariantsInput {
 
 fn parse_unnamed_pattern(input: ParseStream) -> Result<VariantPattern> {
     let content;
-
     parenthesized!(content in input);
 
     let bindings =
@@ -103,7 +100,6 @@ fn parse_unnamed_pattern(input: ParseStream) -> Result<VariantPattern> {
 
 fn parse_named_pattern(input: ParseStream) -> Result<VariantPattern> {
     let content;
-
     braced!(content in input);
 
     let bindings = Punctuated::<NamedBinding, Token![,]>::parse_terminated(&content)?;
@@ -115,7 +111,6 @@ fn brace_is_followed_by_comma(input: ParseStream) -> Result<bool> {
     let fork = input.fork();
 
     let content;
-
     braced!(content in fork);
 
     Ok(fork.peek(Token![,]))
@@ -140,20 +135,44 @@ pub(crate) fn expand(input: TokenStream) -> TokenStream {
 
     let match_enum_path = generate_match_enum_path(&enum_path);
 
-    let type_binding = type_binding.map(|type_binding| {
-        quote! {
-            type #type_binding,
+    /*
+     * Normalize the public syntax into an unambiguous
+     * internal protocol.
+     *
+     * Examples:
+     *
+     *     [no_type], [none]
+     *     [type T], [none]
+     *     [no_type], [unnamed (x)]
+     *     [type T], [named { value: x }]
+     */
+
+    let type_binding = match type_binding {
+        Some(type_binding) => {
+            quote! {
+                [type #type_binding]
+            }
         }
-    });
+
+        None => {
+            quote! {
+                [no_type]
+            }
+        }
+    };
 
     let pattern = match pattern {
         None => {
-            quote! {}
+            quote! {
+                [none]
+            }
         }
 
         Some(VariantPattern::Unnamed(bindings)) => {
             quote! {
-                (#(#bindings),*),
+                [unnamed (
+                    #(#bindings),*
+                )]
             }
         }
 
@@ -163,11 +182,11 @@ pub(crate) fn expand(input: TokenStream) -> TokenStream {
             let patterns = bindings.iter().map(|binding| &binding.binding);
 
             quote! {
-                {
+                [named {
                     #(
                         #fields: #patterns
                     ),*
-                },
+                }]
             }
         }
     };
@@ -176,14 +195,37 @@ pub(crate) fn expand(input: TokenStream) -> TokenStream {
         #helper_macro!(
             [#match_enum_path],
             #value,
-            #type_binding
-            #pattern
+            #type_binding,
+            #pattern,
             #body
         )
     }}
     .into()
 }
 
+/// Returns the enum path used inside the generated match.
+///
+/// For paths with one or two segments, only the enum name is used:
+///
+/// `MyEnum`
+///     -> `MyEnum`
+///
+/// `crate::MyEnum`
+///     -> `MyEnum`
+///
+/// `domain::MyEnum`
+///     -> `MyEnum`
+///
+/// Longer paths are preserved:
+///
+/// `crate::foo::bar::MyEnum`
+///     -> `crate::foo::bar::MyEnum`
+///
+/// `domain::foo::bar::MyEnum`
+///     -> `domain::foo::bar::MyEnum`
+///
+/// This distinction is required because a two-segment path may qualify
+/// the helper macro rather than describe the enum's path at the match site.
 fn generate_match_enum_path(enum_path: &Path) -> TokenStream2 {
     if enum_path.segments.len() <= 2 {
         let enum_name = &enum_path
