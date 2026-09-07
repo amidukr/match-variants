@@ -1,0 +1,27 @@
+error: expected identifier, found `,`
+  --> tests/ui/match_variants_empty_named_pattern.rs:3:10
+   |
+ 3 | #[derive(MatchVariants)]
+   |          ^^^^^^^^^^^^^ expected identifier
+ 4 | enum Value {
+ 5 |     Foo {},
+   |     --- while parsing the fields for this pattern
+...
+12 |     let _ = match_variants!(Value, value, {}, 42);
+   |             ------------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `match_variants_for_Value` which comes from the expansion of the macro `match_variants` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: expected identifier, found `,`
+  --> tests/ui/match_variants_empty_named_pattern.rs:3:10
+   |
+ 3 | #[derive(MatchVariants)]
+   |          ^^^^^^^^^^^^^ expected identifier
+...
+ 6 |     Bar {},
+   |     --- while parsing the fields for this pattern
+...
+12 |     let _ = match_variants!(Value, value, {}, 42);
+   |             ------------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `match_variants_for_Value` which comes from the expansion of the macro `match_variants` (in Nightly builds, run with -Z macro-backtrace for more info)

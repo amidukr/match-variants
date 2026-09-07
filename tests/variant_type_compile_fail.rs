@@ -9,6 +9,7 @@ fn variant_type_compile_failures() {
 
     tests.compile_fail("tests/ui/match_variants_invalid_named_pattern.rs");
     tests.compile_fail("tests/ui/match_variants_invalid_tuple_pattern.rs");
+    tests.compile_fail("tests/ui/match_variants_empty_named_pattern.rs");
     tests.compile_fail("tests/ui/match_variants_type_missing_comma.rs");
 
     tests.compile_fail("tests/ui/empty_variant_type_missing.rs");

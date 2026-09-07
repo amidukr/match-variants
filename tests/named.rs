@@ -120,3 +120,21 @@ fn named_variants_can_be_matched_without_binding_payload() {
     assert_eq!(foo_result, "named");
     assert_eq!(bar_result, "named");
 }
+
+#[derive(MatchVariants)]
+enum EmptyNamedVariant {
+    Foo {},
+    Bar {},
+}
+
+#[test]
+fn empty_named_variants_can_be_matched_without_binding_payload() {
+    let foo = EmptyNamedVariant::Foo {};
+    let bar = EmptyNamedVariant::Bar {};
+
+    let foo_result = match_variants!(EmptyNamedVariant, foo, "named");
+    let bar_result = match_variants!(EmptyNamedVariant, bar, "named");
+
+    assert_eq!(foo_result, "named");
+    assert_eq!(bar_result, "named");
+}

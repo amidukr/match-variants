@@ -47,3 +47,33 @@ fn tuple_multiple_fields_are_bound() {
     assert_eq!(a, 7.0);
     assert_eq!(b, 24.0);
 }
+
+#[derive(MatchVariants)]
+enum EmptyTupleVariant {
+    Foo(),
+    Bar(),
+}
+
+#[test]
+fn empty_tuple_variants_can_be_matched_without_binding_payload() {
+    let foo = EmptyTupleVariant::Foo();
+    let bar = EmptyTupleVariant::Bar();
+
+    let foo_result = match_variants!(EmptyTupleVariant, foo, "tuple");
+    let bar_result = match_variants!(EmptyTupleVariant, bar, "tuple");
+
+    assert_eq!(foo_result, "tuple");
+    assert_eq!(bar_result, "tuple");
+}
+
+#[test]
+fn empty_tuple_variants_accept_empty_tuple_pattern() {
+    let foo = EmptyTupleVariant::Foo();
+    let bar = EmptyTupleVariant::Bar();
+
+    let foo_result = match_variants!(EmptyTupleVariant, foo, (), "foo");
+    let bar_result = match_variants!(EmptyTupleVariant, bar, (), "bar");
+
+    assert_eq!(foo_result, "foo");
+    assert_eq!(bar_result, "bar");
+}
