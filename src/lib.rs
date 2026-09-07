@@ -335,6 +335,56 @@ pub fn derive_match_variants(input: TokenStream) -> TokenStream {
 /// assert_eq!(result, (std::any::type_name::<Bar>(), 42));
 /// ```
 ///
+/// The local type alias can declare generics:
+///
+/// ```
+/// use match_variants::{match_variants, MatchVariants};
+///
+/// struct Foo<T> {
+///     value: T,
+/// }
+///
+/// struct Bar<T> {
+///     value: T,
+/// }
+///
+/// trait Value {
+///     fn value(&self) -> i32;
+/// }
+///
+/// trait Marker {}
+///
+/// impl Value for Foo<i32> {
+///     fn value(&self) -> i32 {
+///         self.value
+///     }
+/// }
+///
+/// impl Value for Bar<i32> {
+///     fn value(&self) -> i32 {
+///         self.value
+///     }
+/// }
+///
+/// #[derive(MatchVariants)]
+/// enum Kind {
+///     #[variant_type(Foo<U>)]
+///     Foo,
+///
+///     #[variant_type(Bar<U>)]
+///     Bar,
+/// }
+///
+/// let kind = Kind::Foo;
+///
+/// let result = match_variants!(Kind, kind, type T<U: Marker>, {
+///     let value = T { value: 123 };
+///     value.value()
+/// });
+///
+/// assert_eq!(result, 123);
+/// ```
+///
 /// Requesting a `type` binding for an enum without `#[variant_type(...)]`
 /// metadata produces a compile-time error.
 ///
