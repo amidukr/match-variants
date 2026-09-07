@@ -96,15 +96,7 @@ pub(crate) fn expand(input: TokenStream) -> TokenStream {
 
     let helper_macro = format_ident!("match_variants_for_{}", enum_name);
 
-    let generated = match variant_kind {
-        Some(variant_kind) => {
-            generate_macro(&helper_macro, &variants, has_variant_types, variant_kind)
-        }
-
-        None => generate_empty_macro(&helper_macro),
-    };
-
-    generated.into()
+    generate_macro(&helper_macro, &variants, has_variant_types, variant_kind).into()
 }
 
 fn parse_variant_type(attrs: &[Attribute]) -> syn::Result<Option<Type>> {
@@ -132,7 +124,7 @@ fn generate_macro(
     helper_macro: &Ident,
     variants: &[VariantInfo],
     has_variant_types: bool,
-    variant_kind: VariantKind,
+    variant_kind: Option<VariantKind>,
 ) -> TokenStream2 {
     let generate_rule = |has_pattern: bool, typed: bool| {
         let type_input = if typed {
@@ -146,19 +138,7 @@ fn generate_macro(
         };
 
         let pattern_input = match (variant_kind, has_pattern) {
-            (VariantKind::Unit, _) => {
-                quote! {
-                    [none]
-                }
-            }
-
-            (VariantKind::Unnamed, false) => {
-                quote! {
-                    [none]
-                }
-            }
-
-            (VariantKind::Unnamed, true) => {
+            (Some(VariantKind::Unnamed), true) => {
                 quote! {
                     [unnamed (
                         $($binding:pat),*
@@ -167,13 +147,7 @@ fn generate_macro(
                 }
             }
 
-            (VariantKind::Named, false) => {
-                quote! {
-                    [none]
-                }
-            }
-
-            (VariantKind::Named, true) => {
+            (Some(VariantKind::Named), true) => {
                 quote! {
                     [named {
                         $(
@@ -185,9 +159,35 @@ fn generate_macro(
                     }]
                 }
             }
+
+            (_, false) => {
+                quote! {
+                    [none]
+                }
+            }
+
+            (Some(VariantKind::Unit), true) | (None, true) => {
+                quote! {
+                    $pattern:tt
+                }
+            }
         };
 
-        if typed && !has_variant_types {
+        let error = if typed && !has_variant_types {
+            Some("`type` binding requires #[variant_type(...)] on every enum variant")
+        } else if has_pattern {
+            match variant_kind {
+                Some(VariantKind::Unit) => Some("cannot use a variant pattern with unit variants"),
+
+                None => Some("cannot use a variant pattern with an empty enum"),
+
+                _ => None,
+            }
+        } else {
+            None
+        };
+
+        if let Some(error) = error {
             return quote! {
                 (
                     [$first:tt $(:: $rest:tt)*],
@@ -196,9 +196,7 @@ fn generate_macro(
                     #pattern_input,
                     $body:expr
                 ) => {
-                    compile_error!(
-                        "`type` binding requires #[variant_type(...)] on every enum variant"
-                    )
+                    compile_error!(#error)
                 };
             };
         }
@@ -218,17 +216,17 @@ fn generate_macro(
                 });
 
             let variant_pattern = match (variant_kind, has_pattern) {
-                (VariantKind::Unit, _) => {
+                (Some(VariantKind::Unit), _) => {
                     quote! {}
                 }
 
-                (VariantKind::Unnamed, false) => {
+                (Some(VariantKind::Unnamed), false) => {
                     quote! {
                         (..)
                     }
                 }
 
-                (VariantKind::Unnamed, true) => {
+                (Some(VariantKind::Unnamed), true) => {
                     quote! {
                         (
                             $($binding),*
@@ -236,13 +234,13 @@ fn generate_macro(
                     }
                 }
 
-                (VariantKind::Named, false) => {
+                (Some(VariantKind::Named), false) => {
                     quote! {
                         { .. }
                     }
                 }
 
-                (VariantKind::Named, true) => {
+                (Some(VariantKind::Named), true) => {
                     quote! {
                         {
                             $(
@@ -252,6 +250,10 @@ fn generate_macro(
                             ..
                         }
                     }
+                }
+
+                (None, _) => {
+                    quote! {}
                 }
             };
 
@@ -281,58 +283,14 @@ fn generate_macro(
         }
     };
 
-    let rules: Vec<_> = match variant_kind {
-        VariantKind::Unit => {
-            vec![generate_rule(false, false), generate_rule(false, true)]
-        }
-
-        VariantKind::Unnamed | VariantKind::Named => {
-            vec![
-                generate_rule(false, false),
-                generate_rule(false, true),
-                generate_rule(true, false),
-                generate_rule(true, true),
-            ]
-        }
-    };
+    let rules = vec![
+        generate_rule(false, false),
+        generate_rule(false, true),
+        generate_rule(true, false),
+        generate_rule(true, true),
+    ];
 
     generate_helper_macro(helper_macro, &rules)
-}
-
-fn generate_empty_macro(helper_macro: &Ident) -> TokenStream2 {
-    quote! {
-        #[doc(hidden)]
-        #[macro_export]
-        macro_rules! #helper_macro {
-            (
-                [$first:tt $(:: $rest:tt)*],
-                $value:expr,
-                [type $type_binding:ident],
-                $pattern:tt,
-                $body:expr
-            ) => {
-                compile_error!(
-                    "`type` binding requires #[variant_type(...)] on every enum variant"
-                )
-            };
-
-            (
-                [$first:tt $(:: $rest:tt)*],
-                $value:expr,
-                [no_type],
-                $pattern:tt,
-                $body:expr
-            ) => {
-                match $value {}
-            };
-        }
-
-        #[doc(hidden)]
-        #[allow(non_snake_case)]
-        pub mod #helper_macro {
-            pub use #helper_macro;
-        }
-    }
 }
 
 fn generate_helper_macro(helper_macro: &Ident, rules: &[TokenStream2]) -> TokenStream2 {

@@ -48,11 +48,11 @@ mod consumer {
     );
 
     pub fn tuple_value(value: domain::TupleValue) -> f64 {
-        match_variants!(crate::domain::TupleValue, value, (x), { x.value() })
+        match_variants!(crate::domain::TupleValue, value, (x), x.value())
     }
 
     pub fn named_value(value: domain::NamedValue) -> f64 {
-        match_variants!(crate::domain::NamedValue, value, { value: x }, { x.value() })
+        match_variants!(crate::domain::NamedValue, value, { value: x },  x.value() )
     }
 }
 

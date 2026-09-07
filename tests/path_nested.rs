@@ -33,9 +33,9 @@ fn supports_nested_crate_qualified_enum_path() {
 
     let bar = crate::foo::bar::MyEnum::Bar(crate::foo::bar::Bar);
 
-    let foo_result = match_variants!(crate::foo::bar::MyEnum, foo, (x), { x.value() });
+    let foo_result = match_variants!(crate::foo::bar::MyEnum, foo, (x), x.value());
 
-    let bar_result = match_variants!(crate::foo::bar::MyEnum, bar, (x), { x.value() });
+    let bar_result = match_variants!(crate::foo::bar::MyEnum, bar, (x), x.value());
 
     assert_eq!(foo_result, 10);
     assert_eq!(bar_result, 20);

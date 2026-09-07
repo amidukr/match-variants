@@ -21,14 +21,19 @@ enum Value {
     Bar(Bar),
 }
 
+fn empty_method() {}
+
 #[test]
 fn supports_heterogeneous_payload_types() {
     let foo = Value::Foo(Foo(10.0));
     let bar = Value::Bar(Bar(10.0));
 
-    let foo = match_variants!(Value, foo, (x), { x.value() });
+    let foo = match_variants!(Value, foo, (x), {
+        empty_method();
+        x.value()
+    });
 
-    let bar = match_variants!(Value, bar, (x), { x.value() });
+    let bar = match_variants!(Value, bar, (x), x.value());
 
     assert_eq!(foo, 10.0);
     assert_eq!(bar, 20.0);

@@ -1,0 +1,13 @@
+error: cannot use a variant pattern with an empty enum
+  --> tests/ui/empty_with_pattern.rs:3:10
+   |
+ 3 |   #[derive(MatchVariants)]
+   |            ^^^^^^^^^^^^^
+...
+ 7 | /     match_variants!(Empty, value, (x), {
+ 8 | |         let _ = x;
+ 9 | |         42
+10 | |     })
+   | |______- in this macro invocation
+   |
+   = note: this error originates in the macro `match_variants_for_Empty` which comes from the expansion of the macro `match_variants` (in Nightly builds, run with -Z macro-backtrace for more info)

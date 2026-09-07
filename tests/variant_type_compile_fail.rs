@@ -4,4 +4,5 @@ fn variant_type_compile_failures() {
 
     tests.compile_fail("tests/ui/variant_type_partial.rs");
     tests.compile_fail("tests/ui/variant_type_missing.rs");
+    tests.compile_fail("tests/ui/empty_with_pattern.rs");
 }

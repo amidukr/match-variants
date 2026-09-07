@@ -21,6 +21,8 @@ enum SingleFieldNamed {
     Bar { value: Bar },
 }
 
+fn empty_method() {}
+
 #[test]
 fn named_single_field_supports_heterogeneous_types() {
     let foo = SingleFieldNamed::Foo { value: Foo(10.0) };
@@ -32,6 +34,7 @@ fn named_single_field_supports_heterogeneous_types() {
         foo,
         { value: x },
         {
+            empty_method();
             x.value()
         }
     );
@@ -40,9 +43,7 @@ fn named_single_field_supports_heterogeneous_types() {
         SingleFieldNamed,
         bar,
         { value: x },
-        {
-            x.value()
-        }
+        x.value()
     );
 
     assert_eq!(foo_result, 10.0);
@@ -90,6 +91,7 @@ fn named_multiple_fields_are_bound() {
             context: ctx
         },
         {
+            empty_method();
             x.process(ctx)
         }
     );
@@ -101,9 +103,7 @@ fn named_multiple_fields_are_bound() {
             value: x,
             context: ctx
         },
-        {
-            x.process(ctx)
-        }
+        x.process(ctx)
     );
 
     assert_eq!(foo_result, 15.0);
