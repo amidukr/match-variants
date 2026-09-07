@@ -385,6 +385,24 @@ pub fn derive_match_variants(input: TokenStream) -> TokenStream {
 /// assert_eq!(result, 123);
 /// ```
 ///
+/// Conceptually, the generated alias includes the supplied generic
+/// parameters:
+///
+/// ```text
+/// match kind {
+///     Kind::Foo => {
+///         type T<U: Marker> = Foo<U>;
+///         let value = T { value: 123 };
+///         value.value()
+///     }
+///     Kind::Bar => {
+///         type T<U: Marker> = Bar<U>;
+///         let value = T { value: 123 };
+///         value.value()
+///     }
+/// }
+/// ```
+///
 /// Requesting a `type` binding for an enum without `#[variant_type(...)]`
 /// metadata produces a compile-time error.
 ///
