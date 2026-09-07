@@ -74,7 +74,7 @@ mod match_variants;
 ///
 /// For an enum named `Value`, the derive generates a helper macro named
 /// `match_variants_for_Value`.
-#[proc_macro_derive(MatchVariants)]
+#[proc_macro_derive(MatchVariants, attributes(variant_type))]
 pub fn derive_match_variants(input: TokenStream) -> TokenStream {
     derive::expand(input)
 }

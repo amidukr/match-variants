@@ -13,7 +13,8 @@ use syn::{
 struct MatchVariantsInput {
     enum_path: Path,
     value: Expr,
-    pattern: VariantPattern,
+    type_binding: Option<Ident>,
+    pattern: Option<VariantPattern>,
     body: Expr,
 }
 
@@ -49,21 +50,34 @@ impl Parse for MatchVariantsInput {
 
         input.parse::<Token![,]>()?;
 
+        let type_binding = if input.peek(Token![type]) {
+            input.parse::<Token![type]>()?;
+
+            let binding: Ident = input.parse()?;
+
+            input.parse::<Token![,]>()?;
+
+            Some(binding)
+        } else {
+            None
+        };
+
         let pattern = if input.peek(syn::token::Paren) {
-            let content;
-            parenthesized!(content in input);
+            let pattern = parse_unnamed_pattern(input)?;
 
-            let bindings =
-                Punctuated::<Pat, Token![,]>::parse_terminated_with(&content, Pat::parse_single)?;
+            input.parse::<Token![,]>()?;
 
-            VariantPattern::Unnamed(bindings.into_iter().collect())
-        } else if input.peek(syn::token::Brace) {
-            let content;
-            braced!(content in input);
+            Some(pattern)
+        } else if input.peek(syn::token::Brace)
+            && (type_binding.is_none() || brace_is_followed_by_comma(input)?)
+        {
+            let pattern = parse_named_pattern(input)?;
 
-            let bindings = Punctuated::<NamedBinding, Token![,]>::parse_terminated(&content)?;
+            input.parse::<Token![,]>()?;
 
-            VariantPattern::Named(bindings.into_iter().collect())
+            Some(pattern)
+        } else if type_binding.is_some() {
+            None
         } else {
             return Err(input.error(
                 "expected unnamed pattern `(x, ...)` \
@@ -71,23 +85,51 @@ impl Parse for MatchVariantsInput {
             ));
         };
 
-        input.parse::<Token![,]>()?;
-
         let body: Expr = input.parse()?;
 
         Ok(Self {
             enum_path,
             value,
+            type_binding,
             pattern,
             body,
         })
     }
 }
 
+fn parse_unnamed_pattern(input: ParseStream) -> Result<VariantPattern> {
+    let content;
+    parenthesized!(content in input);
+
+    let bindings =
+        Punctuated::<Pat, Token![,]>::parse_terminated_with(&content, Pat::parse_single)?;
+
+    Ok(VariantPattern::Unnamed(bindings.into_iter().collect()))
+}
+
+fn parse_named_pattern(input: ParseStream) -> Result<VariantPattern> {
+    let content;
+    braced!(content in input);
+
+    let bindings = Punctuated::<NamedBinding, Token![,]>::parse_terminated(&content)?;
+
+    Ok(VariantPattern::Named(bindings.into_iter().collect()))
+}
+
+fn brace_is_followed_by_comma(input: ParseStream) -> Result<bool> {
+    let fork = input.fork();
+
+    let content;
+    braced!(content in fork);
+
+    Ok(fork.peek(Token![,]))
+}
+
 pub(crate) fn expand(input: TokenStream) -> TokenStream {
     let MatchVariantsInput {
         enum_path,
         value,
+        type_binding,
         pattern,
         body,
     } = parse_macro_input!(input as MatchVariantsInput);
@@ -102,8 +144,8 @@ pub(crate) fn expand(input: TokenStream) -> TokenStream {
 
     let match_enum_path = generate_match_enum_path(&enum_path);
 
-    let generated = match pattern {
-        VariantPattern::Unnamed(bindings) => {
+    let generated = match (type_binding, pattern) {
+        (None, Some(VariantPattern::Unnamed(bindings))) => {
             quote! {{
                 #helper_macro!(
                     [#match_enum_path],
@@ -114,7 +156,7 @@ pub(crate) fn expand(input: TokenStream) -> TokenStream {
             }}
         }
 
-        VariantPattern::Named(bindings) => {
+        (None, Some(VariantPattern::Named(bindings))) => {
             let fields = bindings.iter().map(|binding| &binding.field);
 
             let patterns = bindings.iter().map(|binding| &binding.binding);
@@ -131,6 +173,53 @@ pub(crate) fn expand(input: TokenStream) -> TokenStream {
                     #body
                 )
             }}
+        }
+
+        (Some(type_binding), None) => {
+            quote! {{
+                #helper_macro!(
+                    [#match_enum_path],
+                    #value,
+                    type #type_binding,
+                    #body
+                )
+            }}
+        }
+
+        (Some(type_binding), Some(VariantPattern::Unnamed(bindings))) => {
+            quote! {{
+                #helper_macro!(
+                    [#match_enum_path],
+                    #value,
+                    type #type_binding,
+                    (#(#bindings),*),
+                    #body
+                )
+            }}
+        }
+
+        (Some(type_binding), Some(VariantPattern::Named(bindings))) => {
+            let fields = bindings.iter().map(|binding| &binding.field);
+
+            let patterns = bindings.iter().map(|binding| &binding.binding);
+
+            quote! {{
+                #helper_macro!(
+                    [#match_enum_path],
+                    #value,
+                    type #type_binding,
+                    {
+                        #(
+                            #fields: #patterns
+                        ),*
+                    },
+                    #body
+                )
+            }}
+        }
+
+        (None, None) => {
+            unreachable!("a match without a type binding must have a variant pattern")
         }
     };
 
