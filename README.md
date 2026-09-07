@@ -239,6 +239,8 @@ Variant-associated types are independent of variant payloads.
 For tuple variants:
 
 ```rust
+use match_variants::{match_variants, MatchVariants};
+
 struct Foo;
 struct Bar;
 
@@ -255,6 +257,8 @@ fn process<T>(value: f64) -> (&'static str, f64) {
     (std::any::type_name::<T>(), value)
 }
 
+let value = Value::Foo(42.0);
+
 let result = match_variants!(
     Value,
     value,
@@ -264,6 +268,8 @@ let result = match_variants!(
         process::<T>(x)
     }
 );
+
+assert_eq!(result, (std::any::type_name::<Foo>(), 42.0));
 ```
 
 This is conceptually equivalent to:
@@ -284,6 +290,15 @@ match value {
 The same mechanism works with struct-like variants:
 
 ```rust
+use match_variants::{match_variants, MatchVariants};
+
+struct Foo;
+struct Bar;
+
+fn process<T>(value: f64) -> (&'static str, f64) {
+    (std::any::type_name::<T>(), value)
+}
+
 #[derive(MatchVariants)]
 enum Value {
     #[variant_type(Foo)]
@@ -292,6 +307,8 @@ enum Value {
     #[variant_type(Bar)]
     Bar { value: f64 },
 }
+
+let value = Value::Bar { value: 24.0 };
 
 let result = match_variants!(
     Value,
@@ -302,6 +319,8 @@ let result = match_variants!(
         process::<T>(x)
     }
 );
+
+assert_eq!(result, (std::any::type_name::<Bar>(), 24.0));
 ```
 
 The associated type does not have to be the type of the payload. It is metadata attached to the variant and can represent whatever type is appropriate for the operation.
@@ -309,9 +328,17 @@ The associated type does not have to be the type of the payload. It is metadata 
 Variant type metadata also does not affect ordinary `match_variants!` calls. An enum with complete `#[variant_type(...)]` metadata can still be matched without requesting a type binding:
 
 ```rust
+fn use_value(value: f64) -> f64 {
+    value
+}
+
+let value = Value::Foo { value: 42.0 };
+
 let result = match_variants!(Value, value, { value: x }, {
     use_value(x)
 });
+
+assert_eq!(result, 42.0);
 ```
 
 ## Using enums from another module
@@ -393,6 +420,16 @@ mod consumer {
             }
         )
     }
+}
+
+fn main() {
+    let tuple = domain::TupleValue::Bar(domain::Bar(10.0));
+    let named = domain::NamedValue::Foo {
+        value: domain::Foo(10.0),
+    };
+
+    assert_eq!(consumer::tuple_value(tuple), 20.0);
+    assert_eq!(consumer::named_value(named), 10.0);
 }
 ```
 
