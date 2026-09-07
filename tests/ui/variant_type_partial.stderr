@@ -1,0 +1,5 @@
+error: MatchVariants requires #[variant_type(...)] on either all variants or none; missing on: Bar
+  --> tests/ui/variant_type_partial.rs:10:5
+   |
+10 |     Bar(f64),
+   |     ^^^

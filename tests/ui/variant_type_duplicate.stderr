@@ -1,0 +1,5 @@
+error: duplicate #[variant_type(...)] attribute
+ --> tests/ui/variant_type_duplicate.rs:9:5
+  |
+9 |     #[variant_type(Bar)]
+  |     ^^^^^^^^^^^^^^^^^^^^

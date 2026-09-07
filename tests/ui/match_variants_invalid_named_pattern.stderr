@@ -1,0 +1,5 @@
+error: expected `:`
+  --> tests/ui/match_variants_invalid_named_pattern.rs:12:51
+   |
+12 |     let _ = match_variants!(Value, value, { value x }, x);
+   |                                                   ^

@@ -1,0 +1,5 @@
+error: expected an expression
+  --> tests/ui/match_variants_invalid_tuple_pattern.rs:12:48
+   |
+12 |     let _ = match_variants!(Value, value, (x,),, x);
+   |                                                ^

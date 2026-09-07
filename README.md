@@ -2,9 +2,11 @@
 
 ![match-variants](assets/match-variants-overview.png)
 
-`match-variants` provides procedural macros for applying the same expression to every data-carrying variant of a Rust enum without requiring the variant payload types to implement a common trait.
+`match-variants` provides procedural macros for applying the same expression to every variant of a Rust enum without requiring the variants or their payload types to implement a common trait.
 
-Each generated `match` arm is type-checked independently against its concrete payload type. This makes it useful when several unrelated types expose compatible operations but introducing a shared trait would be unnecessary or undesirable.
+Each generated `match` arm is type-checked independently against its concrete variant. This makes it useful when several unrelated types expose compatible operations but introducing a shared trait would be unnecessary, undesirable, or impossible for the trait shape you need.
+
+The crate can also associate a Rust type with each enum variant and expose it as a local type alias inside the generated match arm.
 
 ## Example
 
@@ -55,7 +57,7 @@ There is no trait-object dispatch, runtime type inspection, or allocation introd
 
 ## Supported enums
 
-`#[derive(MatchVariants)]` supports data-carrying enums whose variants all use the same shape.
+`#[derive(MatchVariants)]` supports enums whose variants all use the same shape.
 
 Tuple variants:
 
@@ -77,7 +79,17 @@ enum Value {
 }
 ```
 
-Unit variants are not supported, and tuple and struct-like variants cannot be mixed in the same enum.
+Unit variants:
+
+```rust
+#[derive(MatchVariants)]
+enum Value {
+    Foo,
+    Bar,
+}
+```
+
+Tuple, struct-like, and unit variants cannot currently be mixed in the same enum.
 
 ## Tuple variants
 
@@ -126,6 +138,208 @@ let result = match_variants!(
 ```
 
 Fields not listed in the macro invocation are ignored.
+
+## Unit variants
+
+Unit variants do not require a payload pattern:
+
+```rust
+#[derive(MatchVariants)]
+enum Value {
+    Foo,
+    Bar,
+}
+
+let result = match_variants!(Value, value, {
+    do_something()
+});
+```
+
+This is particularly useful together with variant-associated types.
+
+## Variant-associated types
+
+A Rust type can optionally be associated with each enum variant using `#[variant_type(...)]`.
+
+For example:
+
+```rust
+struct Foo;
+struct Bar;
+
+#[derive(MatchVariants)]
+enum Value {
+    #[variant_type(Foo)]
+    Foo,
+
+    #[variant_type(Bar)]
+    Bar,
+}
+```
+
+The associated type can then be introduced inside every generated match arm using a local type alias:
+
+```rust
+let result = match_variants!(Value, value, type T, {
+    process::<T>()
+});
+```
+
+Conceptually, this generates:
+
+```rust
+match value {
+    Value::Foo => {
+        type T = Foo;
+        process::<T>()
+    }
+    Value::Bar => {
+        type T = Bar;
+        process::<T>()
+    }
+}
+```
+
+`T` therefore refers to a different concrete type in each match arm, while the body of the operation is written only once.
+
+The type name after `type` is chosen by the caller. For example:
+
+```rust
+match_variants!(Value, value, type Item, {
+    process::<Item>()
+});
+```
+
+The `#[variant_type(...)]` attribute accepts Rust types, including paths and generic types:
+
+```rust
+#[derive(MatchVariants)]
+enum Value {
+    #[variant_type(crate::foo::Foo)]
+    Foo,
+
+    #[variant_type(Container<f64>)]
+    Bar,
+}
+```
+
+If `#[variant_type(...)]` is used, it must be specified for every variant. An enum may therefore have either:
+
+- no `#[variant_type(...)]` attributes, or
+- a `#[variant_type(...)]` attribute on every variant.
+
+Partial variant type metadata is rejected at compile time.
+
+Requesting a `type` binding for an enum without variant type metadata is also rejected at compile time.
+
+## Combining variant types with payloads
+
+Variant-associated types are independent of variant payloads.
+
+For tuple variants:
+
+```rust
+use match_variants::{match_variants, MatchVariants};
+
+struct Foo;
+struct Bar;
+
+#[derive(MatchVariants)]
+enum Value {
+    #[variant_type(Foo)]
+    Foo(f64),
+
+    #[variant_type(Bar)]
+    Bar(f64),
+}
+
+fn process<T>(value: f64) -> (&'static str, f64) {
+    (std::any::type_name::<T>(), value)
+}
+
+let value = Value::Foo(42.0);
+
+let result = match_variants!(
+    Value,
+    value,
+    type T,
+    (x),
+    {
+        process::<T>(x)
+    }
+);
+
+assert_eq!(result, (std::any::type_name::<Foo>(), 42.0));
+```
+
+This is conceptually equivalent to:
+
+```rust
+match value {
+    Value::Foo(x) => {
+        type T = Foo;
+        process::<T>(x)
+    }
+    Value::Bar(x) => {
+        type T = Bar;
+        process::<T>(x)
+    }
+}
+```
+
+The same mechanism works with struct-like variants:
+
+```rust
+use match_variants::{match_variants, MatchVariants};
+
+struct Foo;
+struct Bar;
+
+fn process<T>(value: f64) -> (&'static str, f64) {
+    (std::any::type_name::<T>(), value)
+}
+
+#[derive(MatchVariants)]
+enum Value {
+    #[variant_type(Foo)]
+    Foo { value: f64 },
+
+    #[variant_type(Bar)]
+    Bar { value: f64 },
+}
+
+let value = Value::Bar { value: 24.0 };
+
+let result = match_variants!(
+    Value,
+    value,
+    type T,
+    { value: x },
+    {
+        process::<T>(x)
+    }
+);
+
+assert_eq!(result, (std::any::type_name::<Bar>(), 24.0));
+```
+
+The associated type does not have to be the type of the payload. It is metadata attached to the variant and can represent whatever type is appropriate for the operation.
+
+Variant type metadata also does not affect ordinary `match_variants!` calls. An enum with complete `#[variant_type(...)]` metadata can still be matched without requesting a type binding:
+
+```rust
+fn use_value(value: f64) -> f64 {
+    value
+}
+
+let value = Value::Foo { value: 42.0 };
+
+let result = match_variants!(Value, value, { value: x }, {
+    use_value(x)
+});
+
+assert_eq!(result, 42.0);
+```
 
 ## Using enums from another module
 
@@ -206,6 +420,16 @@ mod consumer {
             }
         )
     }
+}
+
+fn main() {
+    let tuple = domain::TupleValue::Bar(domain::Bar(10.0));
+    let named = domain::NamedValue::Foo {
+        value: domain::Foo(10.0),
+    };
+
+    assert_eq!(consumer::tuple_value(tuple), 20.0);
+    assert_eq!(consumer::named_value(named), 10.0);
 }
 ```
 
@@ -358,6 +582,58 @@ is expanded into separate match arms. If `Value::Foo` contains `Foo` and `Value:
 
 The types do not need to implement a shared trait.
 
+Variant-associated types cover another case where the operation itself may be generic over a type associated with the variant:
+
+```rust
+match_variants!(Value, value, type T, {
+    process::<T>()
+})
+```
+
+Again, each generated arm uses a concrete type. No runtime type dispatch is introduced.
+
+## Why not a common trait or `enum_dispatch`?
+
+A traditional solution is to define a trait implemented by every payload type and dispatch through that trait.
+
+Crates such as [`enum_dispatch`](https://crates.io/crates/enum_dispatch) can remove much of the boilerplate involved in forwarding trait calls through an enum. When its model fits the problem, `enum_dispatch` is often a good solution.
+
+In fact, `enum_dispatch` was where the idea for `match-variants` started. However, there are situations it cannot handle — for example, when the trait involves associated types (`type T = ...`), associated functions without `self`, or methods involving `Self` where the concrete implementation type matters. It also doesn't cover cases where there is no useful trait abstraction in the first place, such as an enum of unit variants representing different associated types.
+
+`match-variants` takes a different approach. Instead of generating trait delegation, it generates an ordinary `match` and repeats the supplied expression for every variant.
+
+For example:
+
+```rust id="3pf84r"
+match_variants!(Value, value, (x), {
+    x.value()
+})
+```
+
+is expanded into separate match arms. If `Value::Foo` contains `Foo` and `Value::Bar` contains `Bar`, then `x.value()` is independently type-checked once with `x: Foo` and once with `x: Bar`.
+
+The types do not need to implement a shared trait.
+
+This also makes struct-like variants with named fields straightforward:
+
+```rust id="7o8p3z"
+match_variants!(Value, value, { value: x }, {
+    x.value()
+})
+```
+
+Variant-associated types cover another case where the operation itself may be generic over a type associated with the variant:
+
+```rust id="0j5dxl"
+match_variants!(Value, value, type T, {
+    process::<T>()
+})
+```
+
+Again, each generated arm uses a concrete type. No runtime type dispatch is introduced.
+
+The goal is therefore not to replace `enum_dispatch`, but to cover cases where trait-based enum delegation is either unsupported or simply not the abstraction you want.
+
 ## Public API
 
 The crate exposes three macros:
@@ -365,6 +641,8 @@ The crate exposes three macros:
 - `#[derive(MatchVariants)]` — generates variant information and the helper macro for an enum.
 - `match_variants!` — generates a match that applies the supplied expression to every variant.
 - `import_match_variants!` — imports generated helper macros when they are needed from another module or crate.
+
+`#[derive(MatchVariants)]` also recognizes the optional `#[variant_type(...)]` helper attribute for associating a type with each enum variant.
 
 ## License
 

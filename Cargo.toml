@@ -1,6 +1,6 @@
 [package]
 name = "match-variants"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 license = "Apache-2.0"
 description = "Rust procedural macros for applying the same expression to heterogeneous enum variants without a common trait."
@@ -16,3 +16,6 @@ proc-macro = true
 syn = { version = "3", features = ["full"] }
 quote = "1"
 proc-macro2 = "1"
+
+[dev-dependencies]
+trybuild = "1"

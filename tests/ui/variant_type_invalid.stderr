@@ -1,0 +1,5 @@
+error: unexpected token
+ --> tests/ui/variant_type_invalid.rs:8:23
+  |
+8 |     #[variant_type(Foo, Bar)]
+  |                       ^

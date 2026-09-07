@@ -21,6 +21,8 @@ enum SingleFieldNamed {
     Bar { value: Bar },
 }
 
+fn empty_method() {}
+
 #[test]
 fn named_single_field_supports_heterogeneous_types() {
     let foo = SingleFieldNamed::Foo { value: Foo(10.0) };
@@ -32,6 +34,7 @@ fn named_single_field_supports_heterogeneous_types() {
         foo,
         { value: x },
         {
+            empty_method();
             x.value()
         }
     );
@@ -40,9 +43,7 @@ fn named_single_field_supports_heterogeneous_types() {
         SingleFieldNamed,
         bar,
         { value: x },
-        {
-            x.value()
-        }
+        x.value()
     );
 
     assert_eq!(foo_result, 10.0);
@@ -90,6 +91,7 @@ fn named_multiple_fields_are_bound() {
             context: ctx
         },
         {
+            empty_method();
             x.process(ctx)
         }
     );
@@ -101,11 +103,38 @@ fn named_multiple_fields_are_bound() {
             value: x,
             context: ctx
         },
-        {
-            x.process(ctx)
-        }
+        x.process(ctx)
     );
 
     assert_eq!(foo_result, 15.0);
     assert_eq!(bar_result, 50.0);
+}
+#[test]
+fn named_variants_can_be_matched_without_binding_payload() {
+    let foo = SingleFieldNamed::Foo { value: Foo(10.0) };
+    let bar = SingleFieldNamed::Bar { value: Bar(10.0) };
+
+    let foo_result = match_variants!(SingleFieldNamed, foo, "named");
+    let bar_result = match_variants!(SingleFieldNamed, bar, "named");
+
+    assert_eq!(foo_result, "named");
+    assert_eq!(bar_result, "named");
+}
+
+#[derive(MatchVariants)]
+enum EmptyNamedVariant {
+    Foo {},
+    Bar {},
+}
+
+#[test]
+fn empty_named_variants_can_be_matched_without_binding_payload() {
+    let foo = EmptyNamedVariant::Foo {};
+    let bar = EmptyNamedVariant::Bar {};
+
+    let foo_result = match_variants!(EmptyNamedVariant, foo, "named");
+    let bar_result = match_variants!(EmptyNamedVariant, bar, "named");
+
+    assert_eq!(foo_result, "named");
+    assert_eq!(bar_result, "named");
 }

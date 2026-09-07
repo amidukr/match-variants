@@ -1,0 +1,27 @@
+error[E0425]: cannot find type `T` in this scope
+  --> tests/ui/variant_type_generic_param.rs:5:24
+   |
+ 5 |       #[variant_type(Vec<T>)]
+   |                          ^ not found in this scope
+...
+19 |       let _ = match_variants!(Value, value, type Meta, (x), {
+   |  _____________-
+20 | |         describe::<Meta>(x)
+21 | |     });
+   | |______- in this macro invocation
+   |
+   = note: this error originates in the macro `match_variants_for_Value` which comes from the expansion of the macro `match_variants` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0425]: cannot find type `T` in this scope
+  --> tests/ui/variant_type_generic_param.rs:8:27
+   |
+ 8 |       #[variant_type(Option<T>)]
+   |                             ^ not found in this scope
+...
+19 |       let _ = match_variants!(Value, value, type Meta, (x), {
+   |  _____________-
+20 | |         describe::<Meta>(x)
+21 | |     });
+   | |______- in this macro invocation
+   |
+   = note: this error originates in the macro `match_variants_for_Value` which comes from the expansion of the macro `match_variants` (in Nightly builds, run with -Z macro-backtrace for more info)

@@ -1,0 +1,5 @@
+error: expected `,`
+  --> tests/ui/match_variants_type_missing_comma.rs:18:50
+   |
+18 |     let _ = match_variants!(Value, value, type T {
+   |                                                  ^

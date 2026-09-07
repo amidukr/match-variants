@@ -1,0 +1,12 @@
+error: `type` binding requires #[variant_type(...)] on every enum variant
+  --> tests/ui/empty_variant_type_missing.rs:3:10
+   |
+ 3 |   #[derive(MatchVariants)]
+   |            ^^^^^^^^^^^^^
+...
+11 | /     match_variants!(Empty, value, type T, {
+12 | |         process::<T>()
+13 | |     })
+   | |______- in this macro invocation
+   |
+   = note: this error originates in the macro `match_variants_for_Empty` which comes from the expansion of the macro `match_variants` (in Nightly builds, run with -Z macro-backtrace for more info)
