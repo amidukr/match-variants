@@ -92,6 +92,7 @@ impl Parse for MatchVariantsInput {
 
 fn parse_unnamed_pattern(input: ParseStream) -> Result<VariantPattern> {
     let content;
+
     parenthesized!(content in input);
 
     let bindings =
@@ -102,6 +103,7 @@ fn parse_unnamed_pattern(input: ParseStream) -> Result<VariantPattern> {
 
 fn parse_named_pattern(input: ParseStream) -> Result<VariantPattern> {
     let content;
+
     braced!(content in input);
 
     let bindings = Punctuated::<NamedBinding, Token![,]>::parse_terminated(&content)?;
@@ -113,6 +115,7 @@ fn brace_is_followed_by_comma(input: ParseStream) -> Result<bool> {
     let fork = input.fork();
 
     let content;
+
     braced!(content in fork);
 
     Ok(fork.peek(Token![,]))
@@ -137,115 +140,50 @@ pub(crate) fn expand(input: TokenStream) -> TokenStream {
 
     let match_enum_path = generate_match_enum_path(&enum_path);
 
-    let generated = match (type_binding, pattern) {
-        (None, None) => {
-            quote! {{
-                #helper_macro!(
-                    [#match_enum_path],
-                    #value,
-                    #body
-                )
-            }}
+    let type_binding = type_binding.map(|type_binding| {
+        quote! {
+            type #type_binding,
+        }
+    });
+
+    let pattern = match pattern {
+        None => {
+            quote! {}
         }
 
-        (None, Some(VariantPattern::Unnamed(bindings))) => {
-            quote! {{
-                #helper_macro!(
-                    [#match_enum_path],
-                    #value,
-                    (#(#bindings),*),
-                    #body
-                )
-            }}
+        Some(VariantPattern::Unnamed(bindings)) => {
+            quote! {
+                (#(#bindings),*),
+            }
         }
 
-        (None, Some(VariantPattern::Named(bindings))) => {
+        Some(VariantPattern::Named(bindings)) => {
             let fields = bindings.iter().map(|binding| &binding.field);
 
             let patterns = bindings.iter().map(|binding| &binding.binding);
 
-            quote! {{
-                #helper_macro!(
-                    [#match_enum_path],
-                    #value,
-                    {
-                        #(
-                            #fields: #patterns
-                        ),*
-                    },
-                    #body
-                )
-            }}
-        }
-
-        (Some(type_binding), None) => {
-            quote! {{
-                #helper_macro!(
-                    [#match_enum_path],
-                    #value,
-                    type #type_binding,
-                    #body
-                )
-            }}
-        }
-
-        (Some(type_binding), Some(VariantPattern::Unnamed(bindings))) => {
-            quote! {{
-                #helper_macro!(
-                    [#match_enum_path],
-                    #value,
-                    type #type_binding,
-                    (#(#bindings),*),
-                    #body
-                )
-            }}
-        }
-
-        (Some(type_binding), Some(VariantPattern::Named(bindings))) => {
-            let fields = bindings.iter().map(|binding| &binding.field);
-
-            let patterns = bindings.iter().map(|binding| &binding.binding);
-
-            quote! {{
-                #helper_macro!(
-                    [#match_enum_path],
-                    #value,
-                    type #type_binding,
-                    {
-                        #(
-                            #fields: #patterns
-                        ),*
-                    },
-                    #body
-                )
-            }}
+            quote! {
+                {
+                    #(
+                        #fields: #patterns
+                    ),*
+                },
+            }
         }
     };
 
-    generated.into()
+    quote! {{
+        #helper_macro!(
+            [#match_enum_path],
+            #value,
+            #type_binding
+            #pattern
+            #body
+        )
+    }}
+    .into()
 }
 
-/// Returns the enum path used inside the generated match.
-///
-/// `MyEnum`
-///     -> `MyEnum`
-///
-/// `crate::MyEnum`
-///     -> `MyEnum`
-///
-/// `domain::MyEnum`
-///     -> `MyEnum`
-///
-/// `crate::foo::bar::MyEnum`
-///     -> `crate::foo::bar::MyEnum`
-///
-/// `domain::foo::bar::MyEnum`
-///     -> `domain::foo::bar::MyEnum`
-///
-/// A two-segment path is treated as
-/// `<helper crate/module>::<locally imported enum>`.
-///
-/// Paths with three or more segments are treated as full enum paths.
 fn generate_match_enum_path(enum_path: &Path) -> TokenStream2 {
     if enum_path.segments.len() <= 2 {
         let enum_name = &enum_path
