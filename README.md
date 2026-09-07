@@ -1,5 +1,7 @@
 # match-variants
 
+![match-variants](assets/match-variants-overview.png)
+
 `match-variants` provides procedural macros for applying the same expression to every data-carrying variant of a Rust enum without requiring the variant payload types to implement a common trait.
 
 Each generated `match` arm is type-checked independently against its concrete payload type. This makes it useful when several unrelated types expose compatible operations but introducing a shared trait would be unnecessary or undesirable.
