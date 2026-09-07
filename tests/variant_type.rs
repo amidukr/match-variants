@@ -30,13 +30,13 @@ enum WithMetadata {
 fn works_without_metadata_and_without_type_binding() {
     let value = WithoutMetadata::Foo(21.0);
 
-    let result = match_variants!(WithoutMetadata, value, (x), { process_value(x) });
+    let result = match_variants!(WithoutMetadata, value, (x), process_value(x));
 
     assert_eq!(result, 42.0);
 
     let value = WithoutMetadata::Bar(12.0);
 
-    let result = match_variants!(WithoutMetadata, value, (x), { process_value(x) });
+    let result = match_variants!(WithoutMetadata, value, (x), process_value(x));
 
     assert_eq!(result, 24.0);
 }
@@ -45,13 +45,13 @@ fn works_without_metadata_and_without_type_binding() {
 fn works_with_complete_metadata_without_type_binding() {
     let value = WithMetadata::Foo(21.0);
 
-    let result = match_variants!(WithMetadata, value, (x), { process_value(x) });
+    let result = match_variants!(WithMetadata, value, (x), process_value(x));
 
     assert_eq!(result, 42.0);
 
     let value = WithMetadata::Bar(12.0);
 
-    let result = match_variants!(WithMetadata, value, (x), { process_value(x) });
+    let result = match_variants!(WithMetadata, value, (x), process_value(x));
 
     assert_eq!(result, 24.0);
 }

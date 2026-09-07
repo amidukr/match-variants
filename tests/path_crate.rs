@@ -26,9 +26,9 @@ fn supports_crate_qualified_enum_path() {
     let foo = crate::MyEnum::Foo(Foo);
     let bar = crate::MyEnum::Bar(Bar);
 
-    let foo_result = match_variants!(crate::MyEnum, foo, (x), { x.value() });
+    let foo_result = match_variants!(crate::MyEnum, foo, (x), x.value());
 
-    let bar_result = match_variants!(crate::MyEnum, bar, (x), { x.value() });
+    let bar_result = match_variants!(crate::MyEnum, bar, (x), x.value());
 
     assert_eq!(foo_result, 10);
     assert_eq!(bar_result, 20);
