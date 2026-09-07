@@ -302,7 +302,7 @@ fn generate_helper_macro(helper_macro: &Ident, rules: &[TokenStream2]) -> TokenS
         }
 
         #[doc(hidden)]
-        #[allow(non_snake_case)]
+        #[allow(non_snake_case, unused_imports)]
         pub mod #helper_macro {
             pub use #helper_macro;
         }
