@@ -1,0 +1,5 @@
+error: MatchVariants does not support mixing unit, unnamed, and named variants
+ --> tests/ui/mixed_variant_kinds.rs:6:5
+  |
+6 |     Bar(f64),
+  |     ^^^
