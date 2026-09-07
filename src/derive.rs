@@ -129,7 +129,7 @@ fn generate_macro(
     let generate_rule = |has_pattern: bool, typed: bool| {
         let type_input = if typed {
             quote! {
-                [type $type_binding:ident]
+                [type $type_binding:ident [$($type_generics:tt)*]]
             }
         } else {
             quote! {
@@ -210,7 +210,7 @@ fn generate_macro(
                 .filter(|_| typed)
                 .map(|variant_type| {
                     quote! {
-                        type $type_binding =
+                        type $type_binding $($type_generics)* =
                             #variant_type;
                     }
                 });
