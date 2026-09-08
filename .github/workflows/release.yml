@@ -47,14 +47,21 @@ jobs:
     name: Bump minor version
     needs: publish
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
 
     steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+
       - name: Checkout default branch
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.repository.default_branch }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Install stable Rust
         uses: dtolnay/rust-toolchain@stable
@@ -69,8 +76,14 @@ jobs:
 
       - name: Commit version bump
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "${{ steps.app-token.outputs.app-slug }}[bot]"
+
+          APP_USER_ID=$(gh api \
+            "/users/${{ steps.app-token.outputs.app-slug }}[bot]" \
+            --jq '.id')
+
+          git config user.email \
+            "${APP_USER_ID}+${{ steps.app-token.outputs.app-slug }}[bot]@users.noreply.github.com"
 
           git add Cargo.toml Cargo.lock
 
@@ -79,6 +92,8 @@ jobs:
             exit 0
           fi
 
-          version="$(cargo metadata --no-deps --format-version 1 | python -c 'import json, sys; print(json.load(sys.stdin)["packages"][0]["version"])')"
+          version="$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')"
           git commit -m "Bump version to ${version}"
           git push
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
