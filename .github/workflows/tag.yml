@@ -1,0 +1,58 @@
+name: Create release tag
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    name: Create tag from Cargo.toml
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Read Cargo version
+        id: version
+        shell: bash
+        run: |
+          version="$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')"
+          tag="v${version}"
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+          echo "Cargo version: $version"
+          echo "Tag: $tag"
+
+      - name: Check tag does not already exist
+        shell: bash
+        run: |
+          tag="${{ steps.version.outputs.tag }}"
+
+          if git rev-parse "$tag" >/dev/null 2>&1; then
+            echo "Tag $tag already exists locally."
+            exit 1
+          fi
+
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
+            echo "Tag $tag already exists on origin."
+            exit 1
+          fi
+
+      - name: Create and push tag
+        shell: bash
+        run: |
+          tag="${{ steps.version.outputs.tag }}"
+
+          git tag "$tag"
+          git push origin "$tag"
